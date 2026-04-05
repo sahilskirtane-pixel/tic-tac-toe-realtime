@@ -1,0 +1,1 @@
+{\n  "name": "tic-tac-toe-realtime",\n  "version": "1.0.0",\n  "description": "A real-time Tic Tac Toe game using Express and Socket.io",\n  "main": "server.js",\n  "scripts": {\n    "start": "node server.js"\n  },\n  "dependencies": {\n    "express": "^4.17.1",\n    "socket.io": "^4.0.0"\n  }\n}
