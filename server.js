@@ -1,66 +1,49 @@
+// Add working multiplayer game code with auto-matching queue
+
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
+const socketIo = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = socketIo(server);
 
-// Store game states and connected players
-let games = {};
-let players = {};
+let waitingPlayers = [];
 
-// Serve static files
-app.use(express.static('public'));
-
-// Handle player connections
 io.on('connection', (socket) => {
-    console.log('A player connected:', socket.id);
+    console.log('A user connected:', socket.id);
 
-    // Handle player joining the game
-    socket.on('joinGame', (gameId) => {
-        if (!games[gameId]) {
-            // Create a new game if it doesn't exist
-            games[gameId] = { players: [] };
-        }
+    // Add player to waiting queue
+    waitingPlayers.push(socket);
+    if (waitingPlayers.length >= 2) {
+        const player1 = waitingPlayers.shift();
+        const player2 = waitingPlayers.shift();
 
-        games[gameId].players.push(socket.id);
-        players[socket.id] = gameId;
+        // Start a new game between player1 and player2
+        startNewGame(player1, player2);
+    }
 
-        socket.join(gameId);
-        io.to(gameId).emit('playerJoined', socket.id);
-
-        // Check if game is full
-        if (games[gameId].players.length === 2) {
-            io.to(gameId).emit('startGame', gameId);
-        }
-    });
-
-    // Handle game moves
-    socket.on('makeMove', ({ gameId, position }) => {
-        io.to(gameId).emit('moveMade', { playerId: socket.id, position });
-    });
-
-    // Handle player disconnect
     socket.on('disconnect', () => {
-        console.log('A player disconnected:', socket.id);
-        const gameId = players[socket.id];
-
-        if (gameId) {
-            const index = games[gameId].players.indexOf(socket.id);
-            if (index !== -1) {
-                games[gameId].players.splice(index, 1);
-                io.to(gameId).emit('playerDisconnected', socket.id);
-                if (games[gameId].players.length === 0) {
-                    delete games[gameId]; // Remove game if no players
-                }
-            }
-        }
+        console.log('User disconnected:', socket.id);
+        // Remove player from waiting queue
+        waitingPlayers = waitingPlayers.filter(player => player.id !== socket.id);
     });
 });
 
-// Start the server
+function startNewGame(player1, player2) {
+    player1.emit('gameStarted', { opponentId: player2.id });
+    player2.emit('gameStarted', { opponentId: player1.id });
+
+    // Game Logic
+    player1.on('move', (data) => {
+        player2.emit('opponentMove', data);
+    });
+    player2.on('move', (data) => {
+        player1.emit('opponentMove', data);
+    });
+}
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server is running on port ${PORT}`);
 });
